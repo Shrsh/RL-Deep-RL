@@ -1,5 +1,6 @@
 import gym
 from gym import Wrapper
+from gym.wrappers import Monitor
 from gym import error, version, logger
 import os, json, numpy as np, six
 from gym.wrappers.monitoring import stats_recorder, video_recorder
@@ -9,8 +10,10 @@ import numpy as np
 import sys
 import random
 import numpy as np
+import os
+import matplotlib.pyplot as plt
 
-class Monte_Carlo_Control:
+class Control:
 
 	#global declarations 
 	#==================
@@ -21,15 +24,24 @@ class Monte_Carlo_Control:
 	gamma = 0.99	 	            # Discount Factor
 	epsilon = 0.9                   # minimum epsilon for epsilon greedy policies
 	env =  ""
+	monitor_path = ""				# path for recording monitor videos
+	record = False					#boolean variable for recording the videos using monitor
 
 
-	def __init__(self,total_episodes,learning_rate,max_steps,gamma,env,epsilon):
+
+	def __init__(self,total_episodes,learning_rate,max_steps,gamma,env,epsilon,path):
+
+		self.monitor_path = os.path.join(path, "monitor")
 		self.total_episodes = total_episodes
 		self.learning_rate  = learning_rate
 		self.max_steps 		= max_steps
 		self.gamma 			= gamma
 		self.epsilon        = epsilon
+
+		if not os.path.exists(self.monitor_path):
+			os.makedirs(self.monitor_path)
 		self.env = gym.make(env)
+
 		
 	def greedy_policy_action(self,q_table,state,i_episode):
 		eps = 0.9
@@ -42,10 +54,56 @@ class Monte_Carlo_Control:
 		else:
 			return np.argmax(q_table[state],axis=0)
 
-	def results(self,q_table):
+	def results(self,q_table,rewards):
 		print(q_table)
-		print(np.count_nonzero(q_table))
+		plt.plot(rewards)
+		plt.show()
 		self.env.render()
+
+	def Q_Learning(self):
+		
+
+	def SARSA(self):
+		"""
+		SARSA using epsilon greedy policy.  
+		env: OpenAI Gym Environment 
+		"""
+		# q- value table 
+		state_size = self.env.observation_space.n
+		action_space_size = self.env.action_space.n
+		q_table = np.zeros([state_size, action_space_size])
+		count_table = np.zeros([state_size, action_space_size])
+		total_reward = []
+
+		# Record videos
+		self.env= Monitor(self.env,
+				 directory=self.monitor_path,
+				 resume=True,
+				 video_callable=self.record)
+
+		for i_episode in range(self.total_episodes):
+			reward_per_episode = 0
+			state = self.env.reset()
+			step = 0
+			done = False
+			if i_episode % 1000 == 0:
+			   print("\rEpisode {}/{}.".format(i_episode, self.total_episodes))
+			   sys.stdout.flush()
+			   self.record = True
+			else:
+				self.record = False
+			action = self.greedy_policy_action(q_table,state,i_episode)
+
+			while done == False: 	
+				new_state, reward, done, info = self.env.step(action) 
+				reward_per_episode += reward
+				next_action = self.greedy_policy_action(q_table,new_state,i_episode)
+				q_table[state][action] += self.learning_rate*(reward + self.gamma*q_table[new_state][next_action] - q_table[state][action])
+				state = new_state
+				action = next_action
+			total_reward.append(reward_per_episode)
+		self.results(q_table,total_reward)
+
 
 	def monte_carlo_on_policy_control(self):
 		"""
@@ -101,9 +159,12 @@ class Monte_Carlo_Control:
 			del episode
 		self.results(q_table)
 
-env = Monte_Carlo_Control(20000,0.8,5000,0.99,"FrozenLake-v0",0.1)
+
+
+path = ""
+env = Control(100000,0.8,5000,0.99,"Taxi-v2",0.1,path)
 # train_monte_carlo(env, value_table)
-env.monte_carlo_on_policy_control()
+env.SARSA()
 
 
 
